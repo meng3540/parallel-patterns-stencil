@@ -3,10 +3,9 @@ How does the stencil function work in CUDA:
 
 
  In CUDA, the stencil function is a fundamental concept used for parallel data processing, especially in scenarios where data elements are updated based on neighboring elements. Stencil computations are prevalent in fields such as image processing, computational physics, and finite difference methods.
+ 
 
-Here's a summary of how the stencil function works in CUDA:
-
-
+Summary of how the stencil function works in CUDA:
 
 Stencil Operation: The stencil operation involves updating each element in an array (or grid) based on its neighboring elements. The update rule typically depends on a fixed pattern of neighboring elements, often referred to as the stencil pattern.
 
