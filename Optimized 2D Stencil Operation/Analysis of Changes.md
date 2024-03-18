@@ -1,36 +1,110 @@
-By optimizing the thread organization and removing the conditional if statements for border handling, the code's performance and scalability is increased. 
-This allows the stencil operation to be applied to all elements of the array, resulting in more accurate values since the border values are significant for the computation.
+**Original Code:**
 
-**Improved Use of GPU Resources:**
+```
+__global__ void stencilOperation(int* input, int* output, int width) {
+  int row = blockIdx.y * blockDim.y + threadIdx.y;
+  int col = blockIdx.x * blockDim.x + threadIdx.x;
 
-The optimized code ensures that all threads that are launched on the GPU are actively contributing to the computation. In terms of the original code, the border elements were not included which led to the GPU's resources not being used to their full potential. By removing the conditional if statements and allowing the stencil operation to be applied to all elements, the GPU's computational power is fully utilized, resulting in better overall performance.
+  if (row < N && col < M) {
+    int index = row * width + col;
+    if (row > 0 && row < N - 1 && col > 0 && col < M - 1) {
+      output[index] = input[index - width] + input[index] + input[index + width] +
+        input[index - 1] + input[index + 1];
+    }
+    else {
+      output[index] = input[index];
+    }
+  }
+}
+```
+**Optimized Code:**
+```
+__global__ void stencilOperation(int* input, int* output, int width, int height) {
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
+    int bx = blockIdx.x * blockDim.x;
+    int by = blockIdx.y * blockDim.y;
+    int row = by + ty;
+    int col = bx + tx;
+
+    if (row < height && col < width) {
+        int sum = input[row * width + col];
+        if (row > 0)           sum += input[(row - 1) * width + col];
+        if (row < height - 1)  sum += input[(row + 1) * width + col];
+        if (col > 0)           sum += input[row * width + col - 1];
+        if (col < width - 1)   sum += input[row * width + col + 1];
+        output[row * width + col] = sum;
+    }
+}
+```
 
 
-**Improved Scalability:**
 
-By including the border elements, we gained more accurate results. This would be useful in applications where the border values would significantly impact the computation. The code's ability to apply the operation across the whole array is crucial for applications such as scientific simulations or image processing.
+**Thread Indexing:**
+  - In the original code, the row and column indices were found using 'blockIdx' and 'threadIdx', however the computation didn't include the border values.
+  - In the optimized code, the thread indices are used to compute global indices for each thread. This ensures that all elements, including the border, are processed.
 
-**Border elements are important in scientific simulations such as:**
+  **Original Code:**
+```
+  int row = blockIdx.y * blockDim.y + threadIdx.y;
+  int col = blockIdx.x * blockDim.x + threadIdx.x;
+```
+  **Optimized Code:**
+```
+  int tx = threadIdx.x;
+  int ty = threadIdx.y;
+  int bx = blockIdx.x * blockDim.x;
+  int by = blockIdx.y * blockDim.y;
+  int row = by + ty;
+  int col = bx + tx;
+```
+ **Difference:**
+  - The original code uses 'row' and 'col' are directly calculated using 'blockIdx' and 'threadIdx' to determine the global index of the thread
+  - The optimized code uses 'tx' and 'ty' to represent the thread indices within the block, while 'bx' and 'by' represent the global indices of the block's corner. 
+    'row' and 'col' are computed by adding the indices together
 
-- Computational Fluid Dynamics for accurate predictions of fluid flow near boundaries:
-  - The behavior of fluids near boundaries such as walls is important for accurate predictions of flow patterns, pressure distributions, and heat transfer
-  - Border elements are used for capturing boundary layer phenomena, and turbulence effects
 
 
-- Finite Difference Method for heat transfer:
-  - The temperature distribution within a solid object or fluid domain depends on the boundary conditions ats its surface
-  - The border elements are needed to represent the boundary conditions accurately, ensuring that stress and deformation near the boundaries are correctly simulated
+
+**Stencil Operation:**
+  - In the original code, the stencil operation was performed only on interior elements, excluding border elements from the computation.
+  - In the optimized code, the stencil operation is applied to all elements within the array bounds. 
+    The conditional statements that exclude border elements from the stencil computation are removed, allowing the operation to be applied uniformly across the array.
+
+  **Original Code:**
+```
+  if (row > 0 && row < N - 1 && col > 0 && col < M - 1) {
+    // Perform stencil operation
+  } else {
+    // Copy input value
+  }
+```
+  **Optimized Code:**
+```
+  if (row < height && col < width) {
+    // Perform stencil operation
+  }
+```
+  **Difference:**
+  - In the original code, a conditional statement checks if the thread is within the interior of the array (excluding border elements) before performing the stencil operation.
+  - In the optimized code, this conditional statement is removed, allowing the stencil operation to be performed on all elements within the array bounds, including border elements.
 
 
-- Finite Element Method for structural analysis:
-  - Stress and deformation of structures are dependent on conditions, such as fixed supports, applied loads, and prescribed displacements
-  - This ensures that stress and deformation profiles near the boundaries are correctly simulated
-  - The stencil operation is used to solve equilibrium equations for stress and displacement. The border elements affect the stiffness matrix and load vector assembly
 
 
-**Image processing applications:**
+**Grid and Block Dimensions:**
+  - The grid and block dimensions remain similar in both versions, with minor adjustments made in the optimized version to ensure coverage of all elements.
 
-- Edge Detection & Filtering:
-  - Border elements play an important role in edge detection algorithms where images edges need to be identified accurately
-  - Stencil operation algorithms such as Sobel and Prewitt operations are used to compute gradients and derivatives of pixel intensities, with border elements affecting the edge detection process near the image boundaries
-  - Crucial in image filtering operations such as convolution with Gaussian or sharpening kernels
+  **Original Code:**
+```
+  dim3 grid((N + BLOCK_SIZE - 1) / BLOCK_SIZE, (M + BLOCK_SIZE - 1) / BLOCK_SIZE);
+  dim3 block(BLOCK_SIZE, BLOCK_SIZE);
+```
+  **Optimized Code:**
+```
+  dim3 grid((M + BLOCK_SIZE_X - 1) / BLOCK_SIZE_X, (N + BLOCK_SIZE_Y - 1) / BLOCK_SIZE_Y);
+  dim3 block(BLOCK_SIZE_X, BLOCK_SIZE_Y);
+```
+ **Difference:**
+  - In both codes, the grid and block dimensions are calculated to cover the entire input array.
+  - In the optimized code, BLOCK_SIZE_X and BLOCK_SIZE_Y are used to define the block dimensions, allowing for more flexibility in adjusting the block size along each dimension.
